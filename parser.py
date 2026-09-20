@@ -19,6 +19,7 @@ from ast_nodes import (
     Node,
     Parameter,
     PrintItem,
+    PrintStmt,
     Program,
     ReturnStmt,
     SourceSpan,
@@ -309,14 +310,37 @@ class Parser:
         semicolon = self.expect(TokenKind.SEMICOLON)
         return ReturnStmt(value, span=self._span(start, semicolon))
 
+    # print_statement ::= KW_PRINT LEFT_PAREN print_item (COMMA print_item)*
+    #                     RIGHT_PAREN SEMICOLON
     def parse_print_statement(self) -> Stmt:
-        raise NotImplementedError("implemente print_statement")
+        start = self.expect(TokenKind.KW_PRINT)
+        self.expect(TokenKind.LEFT_PAREN)
+        items = [self.parse_print_item()]
+        while self.match(TokenKind.COMMA):
+            items.append(self.parse_print_item())
+        self.expect(TokenKind.RIGHT_PAREN)
+        semicolon = self.expect(TokenKind.SEMICOLON)
+        return PrintStmt(items, span=self._span(start, semicolon))
 
+    # print_item ::= expression | string_literals
     def parse_print_item(self) -> PrintItem:
-        raise NotImplementedError("implemente print_item")
+        if self.check(TokenKind.STRING_LITERAL):
+            return self.parse_string_literals()
+        if self.peek().kind in EXPRESSION_START:
+            return self.parse_expression()
+        raise ParserError(
+            self.peek(), EXPRESSION_START | {TokenKind.STRING_LITERAL}
+        )
 
+    # string_literals ::= STRING_LITERAL+
     def parse_string_literals(self) -> StringLiteral:
-        raise NotImplementedError("implemente string_literals")
+        first = self.expect(TokenKind.STRING_LITERAL)
+        last = first
+        parts = [first.value]
+        while self.check(TokenKind.STRING_LITERAL):
+            last = self.advance()
+            parts.append(last.value)
+        return StringLiteral("".join(parts), span=self._span(first, last))
 
     def _parse_left_associative(
         self,
